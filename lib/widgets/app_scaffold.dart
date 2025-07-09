@@ -65,13 +65,33 @@ class AppScaffold extends ConsumerWidget {
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(color: Colors.blue),
-              child: Text('Navigation Menu'),
+            DrawerHeader(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              child: Center(
+                child: Text(
+                  "Network Test",
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontFamily: 'Roboto',
+                    shadows: [
+                      Shadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 5,
+                        offset: const Offset(2, 2),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
             ListTile(
+              leading: const Icon(Icons.manage_accounts),
               title: Text(
-                'Account Management',
+                'Manage Accounts',
                 style: TextStyle(
                   fontWeight: currentMenu == 0
                       ? FontWeight.bold
@@ -85,8 +105,9 @@ class AppScaffold extends ConsumerWidget {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.schedule),
               title: Text(
-                'Pay Account',
+                'Point Change Schedule',
                 style: TextStyle(
                   fontWeight: currentMenu == 1
                       ? FontWeight.bold
@@ -96,6 +117,22 @@ class AppScaffold extends ConsumerWidget {
               onTap: () {
                 ref.read(currentMenuProvider.notifier).state = 1;
                 Navigator.pop(context);
+                context.go('/schedule-list');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.payment),
+              title: Text(
+                'Manage Pay Account',
+                style: TextStyle(
+                  fontWeight: currentMenu == 2
+                      ? FontWeight.bold
+                      : FontWeight.normal,
+                ),
+              ),
+              onTap: () {
+                ref.read(currentMenuProvider.notifier).state = 2;
+                Navigator.pop(context);
                 context.go('/pay-account');
               },
             ),
@@ -103,6 +140,14 @@ class AppScaffold extends ConsumerWidget {
         ),
       ),
       body: child,
+      floatingActionButton: currentMenu == 1
+          ? FloatingActionButton(
+              onPressed: () {
+                context.push("/add-schedule");
+              },
+              child: Icon(Icons.add),
+            )
+          : null,
     );
   }
 }

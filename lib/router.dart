@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:network_test/features/schedule_management/add_schedule/screen.dart';
+import 'package:network_test/features/schedule_management/list_schedules/screen.dart';
 
 import 'features/account_management/screen.dart';
 import 'features/auth/login_screen.dart';
@@ -21,10 +23,19 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const AccountScreen(),
           ),
           GoRoute(
+            path: '/schedule-list',
+            builder: (context, state) => const ScheduleListScreen(),
+          ),
+
+          GoRoute(
             path: '/pay-account',
             builder: (context, state) => const AddPayAccountScreen(),
           ),
         ],
+      ),
+      GoRoute(
+        path: '/add-schedule',
+        builder: (context, state) => const AddScheduleScreen(),
       ),
     ],
   );
