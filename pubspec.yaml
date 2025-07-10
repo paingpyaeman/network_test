@@ -28,13 +28,20 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  confirm_dialog: ^1.0.4
   cupertino_icons: ^1.0.8
   flutter:
     sdk: flutter
   flutter_riverpod: ^2.6.1
+  fluttertoast: ^8.2.12
   go_router: ^16.0.0
   http: ^1.4.0
+  intl: ^0.20.2
+  loading_progress: ^1.0.2
+  logger: ^2.6.0
   shared_preferences: ^2.5.3
+  syncfusion_flutter_datagrid: ^30.1.39
+  table_calendar: ^3.2.0
 
 dev_dependencies:
   flutter_lints: ^5.0.0
