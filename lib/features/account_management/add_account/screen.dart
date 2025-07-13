@@ -6,12 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logger/logger.dart';
-import 'package:loading_progress/loading_progress.dart';
 import 'package:network_test/core/exceptions/api_failure_exception.dart';
 import 'package:network_test/core/exceptions/auth_failure_exception.dart';
 import 'package:network_test/core/network/api.dart';
 import 'package:network_test/core/network/auth_api.dart';
 import 'package:network_test/core/utils/constants.dart';
+import 'package:network_test/core/utils/dialog_utils.dart';
+import 'package:network_test/core/utils/loader.dart';
 import 'package:network_test/core/utils/util.dart';
 import 'package:network_test/features/account_management/account_model.dart';
 import 'package:network_test/features/account_management/account_provider.dart';
@@ -33,21 +34,19 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
   // Global variables
   var logger = Logger();
 
-  final _phoneInputController = TextEditingController();
-
   bool _isLoadingAccountDetails = false;
-
-  get handleNetworkTest => null;
 
   PurchaseMethod purchaseMethod = PurchaseMethod.bill;
 
   // will init later
   MyIDAccount myIDAccount = MyIDAccount();
+  List<NetworkAccount> allNetworkAccounts = [];
   User? user;
 
   void initValues() {
     myIDAccount = ref.watch(myIDAccountProvider);
     user = ref.watch(currentUserProvider);
+    allNetworkAccounts = ref.watch(allNetworkAccountsProvider);
   }
 
   @override
@@ -319,7 +318,7 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 28),
                     child: ElevatedButton(
-                      onPressed: handleNetworkTest,
+                      onPressed: addToNetworkTest,
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 20),
                         shape: RoundedRectangleBorder(
@@ -352,7 +351,7 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 28),
-                    child: ElevatedButton(
+                    child: ElevatedButton.icon(
                       onPressed: linkOtherNumber,
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 20),
@@ -360,7 +359,11 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      child: const Text(
+                      icon: Icon(
+                        Icons.phone_in_talk,
+                        color: const Color.fromARGB(255, 36, 22, 238),
+                      ),
+                      label: const Text(
                         "Link Other",
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
@@ -374,7 +377,7 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 28),
                     child: ElevatedButton(
-                      onPressed: handleGrandQuest,
+                      onPressed: handleQuests,
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 20),
                         shape: RoundedRectangleBorder(
@@ -382,7 +385,7 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
                         ),
                       ),
                       child: const Text(
-                        "Grand Quest",
+                        "🎯 Quests",
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
@@ -458,7 +461,7 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
           textCancel: const Text('Cancel'),
         )) {
           try {
-            startLoadingProgress();
+            Loader.start(context);
             String? accessToken = myIDAccount.accessToken;
             String? phoneNumber = myIDAccount.phoneNumber;
 
@@ -491,7 +494,7 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
               toastLength: Toast.LENGTH_SHORT,
               textColor: Colors.red,
             );
-            endLoadingProgress();
+            Loader.stop(context);
             context.pushReplacement("/login");
           } on ApiFailureException catch (e) {
             Fluttertoast.showToast(
@@ -506,16 +509,16 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
               textColor: Colors.red,
             );
           } finally {
-            endLoadingProgress();
+            Loader.stop(context);
           }
         }
       }
     });
   }
 
-  Future<void> handleGrandQuest() async {
+  Future<void> handleQuests() async {
     try {
-      startLoadingProgress();
+      Loader.start(context);
       // check myIDAccount
       var phoneNumber = myIDAccount.phoneNumber;
       var accessToken = myIDAccount.accessToken;
@@ -531,7 +534,7 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
       await checkAuthentication(user, AuthStrings.networkTestRole);
 
       var infoResp = await getGrandQuestInfo(phoneNumber, accessToken);
-      debugPrint(infoResp.toString());
+      logger.i(infoResp.toString());
       if (infoResp["success"] != true) {
         throw ApiFailureException(
           "Failed to get quest info: ${infoResp['message']}",
@@ -558,13 +561,6 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
         return;
       }
 
-      // var miniQuests = mainResponse["miniQuest"];
-
-      // for (var miniQuest in miniQuests) {
-      //   logger.i(miniQuest["title"]);
-      //   logger.i(miniQuest);
-      // }
-
       await showDialog(
         context: context,
         builder: (_) => QuestDialog(
@@ -580,7 +576,7 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
         toastLength: Toast.LENGTH_SHORT,
         textColor: Colors.red,
       );
-      endLoadingProgress();
+      Loader.stop(context);
       Navigator.of(context).pushReplacementNamed("/login");
     } on ApiFailureException catch (e) {
       Fluttertoast.showToast(
@@ -595,55 +591,118 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
         textColor: Colors.red,
       );
     } finally {
-      endLoadingProgress();
+      Loader.stop(context);
     }
   }
 
   void linkOtherNumber() async {
     logger.i("linkOtherNumber Start");
-    final pref = await SharedPreferences.getInstance();
-    await pref.setString(
-      AuthStrings.myIDAccountKey,
-      jsonEncode(myIDAccount.toJson()),
-    );
-    logger.i("linkOtherNumber End");
-  }
+    try {
+      Loader.start(context);
+      // check myIDAccount
+      var phoneNumber = myIDAccount.phoneNumber;
+      var accessToken = myIDAccount.accessToken;
+      if (phoneNumber.isEmpty) {
+        throw ApiFailureException("Login first");
+      }
 
-  List<int> loadings = [];
+      if (accessToken == null || accessToken.isEmpty) {
+        throw ApiFailureException("Login first");
+      }
 
-  void startLoadingProgress() {
-    loadings.add(1);
-    LoadingProgress.start(
-      context,
-      widget: Container(
-        width: MediaQuery.of(context).size.width / 4,
-        padding: EdgeInsets.all(MediaQuery.of(context).size.width / 13),
-        child: const AspectRatio(
-          aspectRatio: 1,
-          child: CircularProgressIndicator(
-            color: Colors.white,
-            strokeCap: StrokeCap.round,
-            strokeWidth: 8.0,
-          ),
-        ),
-      ),
-    );
-  }
+      // navigate user to login page if the user is no longer authenticated
+      await checkAuthentication(user, AuthStrings.networkTestRole);
 
-  void endLoadingProgress() {
-    if (loadings.isNotEmpty) {
-      LoadingProgress.stop(context);
-      loadings.removeLast();
+      String? otherPhoneNumber = await openInputDialog(
+        context,
+        "Enter other number",
+        "Phone number",
+        "phone",
+      );
+      if (otherPhoneNumber == null ||
+          otherPhoneNumber.isEmpty ||
+          !isNumeric(otherPhoneNumber)) {
+        throw ApiFailureException("Other phone number is invalid.");
+      }
+
+      var transcResponse = await getLinkOtherTransactionID(
+        otherPhoneNumber,
+        accessToken,
+      );
+      if (transcResponse["errorCode"] != 0) {
+        throw ApiFailureException(
+          "Failed to get OTP: ${transcResponse['message']}",
+        );
+      }
+
+      var transactionId = transcResponse["result"]["id"];
+
+      // request otp
+      var reqOtpResponse = await requestLinkOtherOTP(
+        transactionId,
+        accessToken,
+      );
+      if (reqOtpResponse["errorCode"] != 0) {
+        throw ApiFailureException(
+          "Failed to get OTP: ${reqOtpResponse['message']}",
+        );
+      }
+
+      String? otpCode = "";
+      otpCode = await openInputDialog(context, "Enter OTP", "OTP", "otp");
+      if (otpCode == null || otpCode.isEmpty || !isNumeric(otpCode)) {
+        throw ApiFailureException("OTP is invalid.");
+      }
+
+      // verify otp
+      var verifyResp = await verifyLinkOtherOTP(
+        transactionId,
+        accessToken,
+        otpCode,
+      );
+      if (verifyResp["errorCode"] != 0) {
+        throw ApiFailureException(
+          "Failed to verify OTP: ${verifyResp['message']}",
+        );
+      }
+
+      Fluttertoast.showToast(
+        msg: "SUCCESS: ${verifyResp['message']}",
+        toastLength: Toast.LENGTH_SHORT,
+      );
+    } on AuthFailureException catch (e) {
+      Fluttertoast.showToast(
+        msg: e.msg,
+        toastLength: Toast.LENGTH_SHORT,
+        textColor: Colors.red,
+      );
+      context.pushReplacement("/login");
+    } on ApiFailureException catch (e) {
+      Fluttertoast.showToast(
+        msg: e.msg,
+        toastLength: Toast.LENGTH_SHORT,
+        textColor: Colors.red,
+      );
+    } catch (e) {
+      Fluttertoast.showToast(
+        msg: "Failed to link other.",
+        toastLength: Toast.LENGTH_SHORT,
+        textColor: Colors.red,
+      );
+    } finally {
+      Loader.stop(context);
     }
+    logger.i("linkOtherNumber End");
   }
 
   void _handleLoginRegister() async {
     try {
-      startLoadingProgress();
+      Loader.start(context);
       // navigate user to login page if the user is no longer authenticated
       await checkAuthentication(user, AuthStrings.networkTestRole);
 
       String? phoneNumber = await openInputDialog(
+        context,
         "Enter phone number",
         "Phone number",
         "phone",
@@ -671,7 +730,12 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
         String reqId = reqRegResponse["result"]["reqId"];
 
         // ask user for OTP
-        String? otpCode = await openInputDialog("Enter OTP", "OTP", "otp");
+        String? otpCode = await openInputDialog(
+          context,
+          "Enter OTP",
+          "OTP",
+          "otp",
+        );
         if (otpCode == null || otpCode.isEmpty || !isNumeric(otpCode)) {
           throw ApiFailureException("OTP is invalid.");
         }
@@ -696,7 +760,7 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
       }
 
       String? otpCode = "";
-      otpCode = await openInputDialog("Enter OTP", "OTP", "otp");
+      otpCode = await openInputDialog(context, "Enter OTP", "OTP", "otp");
       if (otpCode == null || otpCode.isEmpty || !isNumeric(otpCode)) {
         throw ApiFailureException("OTP is invalid.");
       }
@@ -726,6 +790,13 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
 
       Fluttertoast.showToast(msg: "SUCCESS", toastLength: Toast.LENGTH_SHORT);
 
+      // save to local storage
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        AuthStrings.myIDAccountKey,
+        jsonEncode(myIDAccount.toJson()),
+      );
+
       loadAccountDetails();
     } on AuthFailureException catch (e) {
       Fluttertoast.showToast(
@@ -733,7 +804,7 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
         toastLength: Toast.LENGTH_SHORT,
         textColor: Colors.red,
       );
-      endLoadingProgress();
+      Loader.stop(context);
       context.pushReplacement("/login");
     } on ApiFailureException catch (e) {
       Fluttertoast.showToast(
@@ -748,49 +819,8 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
         textColor: Colors.red,
       );
     } finally {
-      endLoadingProgress();
+      Loader.stop(context);
     }
-  }
-
-  Future<String?> openInputDialog(String title, String label, String type) {
-    var hintText = "09XXXXXXXXX";
-    if (type == "barcode") {
-      hintText = "1234567890123456789";
-    } else if (type == "otp") {
-      hintText = "123456";
-    }
-    return showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          autofocus: true,
-          controller: _phoneInputController,
-          decoration: InputDecoration(
-            border: const OutlineInputBorder(),
-            labelText: label,
-            hintText: hintText,
-          ),
-          keyboardType: type == "phone"
-              ? TextInputType.phone
-              : TextInputType.number,
-          onSubmitted: (_) => onInputSubmit(dialogContext),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              onInputSubmit(dialogContext);
-            },
-            child: const Text("Submit"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void onInputSubmit(BuildContext context) {
-    Navigator.of(context).pop(_phoneInputController.text.trim());
-    _phoneInputController.clear();
   }
 
   Future loadAccountDetails() async {
@@ -803,14 +833,6 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
       if (accessToken == null) {
         throw ApiFailureException("Login to see account balance.");
       } else {
-        setState(() {
-          myIDAccount.phoneNumber = phoneNumber;
-        });
-
-        // Fluttertoast.showToast(
-        //   msg: "Loading account details",
-        //   toastLength: Toast.LENGTH_SHORT,
-        // );
         Map<String, dynamic> accountDetail = await getAccountDetails(
           phoneNumber,
           accessToken,
@@ -858,23 +880,19 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
           }
         }
 
-        setState(() {
-          myIDAccount.phoneNumber = phoneNumber;
-          myIDAccount.mainBalance =
-              accountDetail["result"][0]["mainBalance"]["main"]["amount"];
-          myIDAccount.voiceBalance =
-              accountDetail["result"][0]["mainBalance"]["voice"]["amount"];
-          myIDAccount.dataBalance =
-              accountDetail["result"][0]["mainBalance"]["data"]["amount"];
-          myIDAccount.dataExpireTime = expireTime;
-          myIDAccount.loyaltyPoints = int.parse(
-            pointDetail["result"]["exchangeBalance"],
-          );
-        });
+        myIDAccount.phoneNumber = phoneNumber;
+        myIDAccount.mainBalance =
+            accountDetail["result"][0]["mainBalance"]["main"]["amount"];
+        myIDAccount.voiceBalance =
+            accountDetail["result"][0]["mainBalance"]["voice"]["amount"];
+        myIDAccount.dataBalance =
+            accountDetail["result"][0]["mainBalance"]["data"]["amount"];
+        myIDAccount.dataExpireTime = expireTime;
+        myIDAccount.loyaltyPoints = int.parse(
+          pointDetail["result"]["exchangeBalance"],
+        );
 
-        // Fluttertoast.showToast(
-        //     msg: "Finished loading account details.",
-        //     toastLength: Toast.LENGTH_SHORT);
+        ref.read(myIDAccountProvider.notifier).state = myIDAccount;
       }
     } on ApiFailureException catch (e) {
       Fluttertoast.showToast(
@@ -896,7 +914,230 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
     }
   }
 
-  void _buyNormalPack(String s) {}
+  // Add to network test START
+  Future addToNetworkTest() async {
+    Loader.start(context);
+    try {
+      String? accessToken = myIDAccount.accessToken;
+      String? refreshToken = myIDAccount.refreshToken;
+      String? phoneNumber = myIDAccount.phoneNumber;
+      if (user == null) {
+        throw AuthFailureException("Please Login");
+      }
 
-  void _buyPack(String s, int i) {}
+      var userId = user?.id;
+      var authToken = user?.token;
+
+      if (accessToken == null ||
+          refreshToken == null ||
+          userId == null ||
+          authToken == null) {
+        throw ApiFailureException("Login is required.");
+      }
+
+      await checkAuthentication(user, AuthStrings.networkTestRole);
+
+      int points;
+      if (myIDAccount.loyaltyPoints == null || myIDAccount.loyaltyPoints == 0) {
+        points = await loadPoints(phoneNumber, accessToken);
+      } else {
+        points = myIDAccount.loyaltyPoints!;
+      }
+
+      logger.i("Points: $points");
+      var response = await saveNetworkTestAccount(
+        phoneNumber: phoneNumber,
+        accessToken: accessToken,
+        loyaltyPoints: points,
+        userId: userId,
+        authToken: authToken,
+      );
+
+      var respJson = utf8JsonDecode(response);
+      logger.i("respJson: $respJson");
+
+      if (response.statusCode != 200) {
+        throw ApiFailureException("Failed to save network test account.");
+      }
+
+      // Add new network account to list
+      NetworkAccount na = NetworkAccount(id: respJson['id']);
+      na.phoneNumber = respJson['phoneNumber'] as String;
+      na.accessToken = respJson['accessToken'] as String;
+      na.isExpired = respJson['isExpired'] as bool;
+      na.loyaltyPoints = respJson['loyaltyPoints'];
+      na.lastUpdated = DateTime.fromMillisecondsSinceEpoch(
+        respJson['updatedAt'],
+      );
+      na.lastAuthenticated = DateTime.fromMillisecondsSinceEpoch(
+        respJson['lastAuthenticatedAt'],
+      );
+      na.lastRunDate = DateTime.fromMillisecondsSinceEpoch(
+        respJson['createdAt'],
+      );
+
+      final updated = [...ref.read(allNetworkAccountsProvider), na];
+      logger.i("adding network account");
+      ref.read(allNetworkAccountsProvider.notifier).state = updated;
+      logger.i("added network account");
+
+      // TODO: add filter
+      // setState(() {
+      //   filter();
+      // });
+
+      Fluttertoast.showToast(
+        msg: "Added to network test list.",
+        toastLength: Toast.LENGTH_SHORT,
+      );
+    } on AuthFailureException catch (e) {
+      Fluttertoast.showToast(
+        msg: e.msg,
+        toastLength: Toast.LENGTH_SHORT,
+        textColor: Colors.red,
+      );
+      Loader.stop(context);
+      Navigator.of(context).pushReplacementNamed("/login");
+    } on ApiFailureException catch (e) {
+      Fluttertoast.showToast(
+        msg: e.msg,
+        toastLength: Toast.LENGTH_SHORT,
+        textColor: Colors.red,
+      );
+    } catch (e) {
+      Fluttertoast.showToast(
+        msg: "Failed to add account to network test list: $e",
+        toastLength: Toast.LENGTH_SHORT,
+        textColor: Colors.red,
+      );
+    }
+
+    Loader.stop(context);
+  }
+
+  Future<int> loadPoints(String phoneNumber, String accessToken) async {
+    var points = 0;
+    var pointDetail = await getPointDetailsRank(phoneNumber, accessToken);
+    if (pointDetail["result"] != null) {
+      points = int.parse(pointDetail["result"]["exchangeBalance"]);
+    }
+
+    return points;
+  }
+  // Add to network test END
+
+  // Buy normal packages START
+  void _buyNormalPack(String packId) async {
+    try {
+      Loader.start(context);
+      // get phoneNumber and accessToken from SharedPreferences
+      var phoneNumber = myIDAccount.phoneNumber;
+      var accessToken = myIDAccount.accessToken;
+      if (phoneNumber.isEmpty) {
+        throw ApiFailureException("Login first");
+      }
+
+      if (accessToken == null || accessToken.isEmpty) {
+        throw ApiFailureException("Login first");
+      }
+
+      // get request token to buy D513
+      var response = await buyNormalPack(phoneNumber, accessToken, packId);
+      logger.i(response.body);
+      if (response.statusCode != 200) {
+        throw ApiFailureException("Failed to buy HL2.");
+      }
+
+      var resJson = jsonDecode(response.body) as Map<String, dynamic>;
+      if (resJson['errorCode'] != 0) {
+        throw ApiFailureException("Failed: ${resJson['message']}");
+      }
+
+      Fluttertoast.showToast(
+        msg: resJson['message'],
+        toastLength: Toast.LENGTH_SHORT,
+      );
+    } on ApiFailureException catch (e) {
+      Fluttertoast.showToast(
+        msg: e.msg,
+        toastLength: Toast.LENGTH_SHORT,
+        textColor: Colors.red,
+      );
+    } catch (e) {
+      Fluttertoast.showToast(
+        msg: "Failed to buy HL2.",
+        toastLength: Toast.LENGTH_SHORT,
+        textColor: Colors.red,
+      );
+    } finally {
+      Loader.stop(context);
+    }
+  }
+  // Buy normal packages END
+
+  // Buy pack with pay
+  void _buyPack(String packId, int packAmount) async {
+    try {
+      Loader.start(context);
+      // get phoneNumber and accessToken from SharedPreferences
+      var phoneNumber = myIDAccount.phoneNumber;
+      var accessToken = myIDAccount.accessToken;
+      if (phoneNumber.isEmpty) {
+        throw ApiFailureException("Login first");
+      }
+
+      if (accessToken == null || accessToken.isEmpty) {
+        throw ApiFailureException("Login first");
+      }
+
+      // request otp to buy pack
+      var reqBuyPackResponse = await requestOTPForBuyPack(
+        phoneNumber,
+        accessToken,
+      );
+      logger.i(reqBuyPackResponse.body);
+      if (reqBuyPackResponse.statusCode != 200) {
+        throw ApiFailureException("Failed to request OTP to buy pack.");
+      }
+
+      var otpCode = await openInputDialog(context, "Enter OTP", "OTP", "otp");
+      if (otpCode == null || otpCode.isEmpty || !isNumeric(otpCode)) {
+        throw ApiFailureException("OTP is invalid");
+      }
+
+      var pin = await openInputDialog(context, "Enter PIN", "PIN", "otp");
+      if (pin == null || pin.isEmpty || !isNumeric(pin)) {
+        throw ApiFailureException("PIN is invalid");
+      }
+
+      // buy pack with otp and mytelpay password
+      var buyPackResponse = await buyPackWithOTPAndMytelPay(
+        phoneNumber,
+        accessToken,
+        otpCode,
+        packId,
+        pin,
+      );
+      logger.i(buyPackResponse.body);
+      if (buyPackResponse.statusCode != 200) {
+        throw ApiFailureException("Failed to buy.");
+      }
+
+      Fluttertoast.showToast(msg: "SUCCESS", toastLength: Toast.LENGTH_SHORT);
+    } on ApiFailureException catch (e) {
+      Fluttertoast.showToast(
+        msg: e.msg,
+        toastLength: Toast.LENGTH_SHORT,
+        textColor: Colors.red,
+      );
+    } catch (e) {
+      Fluttertoast.showToast(
+        msg: "Failed to buy package.",
+        toastLength: Toast.LENGTH_SHORT,
+        textColor: Colors.red,
+      );
+    } finally {
+      Loader.stop(context);
+    }
+  }
 }

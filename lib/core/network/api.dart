@@ -649,6 +649,7 @@ Future<Response> buyPackWithOTPAndMytelPay(
   String accessToken,
   String otpCode,
   String packId,
+  String pin,
 ) async {
   final response = await http.post(
     Uri.https("apis.mytel.com.mm", "/myid-mytelpay/v1.0/api/mytelpay/buy-pack"),
@@ -673,7 +674,7 @@ Future<Response> buyPackWithOTPAndMytelPay(
     },
     body: jsonEncode({
       "phoneNo": phoneNumber,
-      "pin": "111111",
+      "pin": pin,
       "otp": otpCode,
       "packId": packId,
       "language": "EN",
@@ -990,5 +991,39 @@ Future<Response> buyNormalPack(
 
   return response;
 }
-
 // Buy normal packages END
+
+Future<Response> requestOTPForBuyPack(
+  String phoneNumber,
+  String accessToken,
+) async {
+  Map<String, String> params = {
+    "phoneNo": phoneNumber,
+    "language": "EN",
+    "serviceCode": "BUY_PACK",
+  };
+
+  final response = await http.get(
+    Uri.https("apis.mytel.com.mm", "/myid-mytelpay/v1.0/api/otp", params),
+    headers: {
+      "Host": "apis.mytel.com.mm",
+      "sec-ch-ua": "Not_A",
+      "accept": "application/json, text/plain, */*",
+      "sec-ch-ua-mobile": "?1",
+      "authorization": "Bearer $accessToken",
+      "user-agent":
+          "Mozilla/5.0 (Linux; Android 9; SM-A107F Build/PPR1.180610.011; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.145 Mobile Safari/537.36",
+      "sec-ch-ua-platform": "Android",
+      "origin": "https://account.mytel.com.mm",
+      "x-requested-with": "com.mytel.myid",
+      "sec-fetch-site": "same-site",
+      "sec-fetch-mode": "cors",
+      "sec-fetch-dest": "empty",
+      "referer": "https://account.mytel.com.mm/",
+      "accept-encoding": "gzip, deflate, br",
+      "accept-language": "en,en-GB",
+    },
+  );
+
+  return response;
+}

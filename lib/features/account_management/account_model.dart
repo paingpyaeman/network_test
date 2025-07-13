@@ -1,6 +1,10 @@
 // ignore_for_file: public_member_api_docs, sort_constructors_first
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:syncfusion_flutter_datagrid/datagrid.dart';
+
 class MyIDAccount {
   String phoneNumber;
   int? mainBalance;
@@ -129,5 +133,121 @@ class MyIDAccount {
         loyaltyPoints.hashCode ^
         accessToken.hashCode ^
         refreshToken.hashCode;
+  }
+}
+
+class NetworkAccount {
+  int id;
+  String phoneNumber;
+  String? email;
+  DateTime? lastRunDate;
+  DateTime? lastUpdated;
+  DateTime? lastAuthenticated;
+  int loyaltyPoints;
+  String? accessToken;
+  String? refreshToken;
+  bool isExpired;
+
+  NetworkAccount({
+    required this.id,
+    this.phoneNumber = "0",
+    this.email,
+    this.lastRunDate,
+    this.lastUpdated,
+    this.lastAuthenticated,
+    this.loyaltyPoints = 0,
+    this.accessToken,
+    this.refreshToken,
+    this.isExpired = false,
+  });
+
+  @override
+  String toString() {
+    return 'NetworkAccount(id: $id, phoneNumber: $phoneNumber, lastRunDate: $lastRunDate, loyaltyPoints: $loyaltyPoints,accessToken: $accessToken,lastRunDate: $lastRunDate,isExpired: $isExpired,)';
+  }
+
+  Map<String, String> toMap(String? email) {
+    return {
+      'phone_number': phoneNumber,
+      'last_run_date':
+          lastRunDate?.toIso8601String() ?? "", // Handle null value
+      'loyalty_points': loyaltyPoints.toString(),
+      'access_token': accessToken ?? "", // Handle null value
+      'refresh_token': refreshToken ?? "Invalid Token", // Handle null value
+      'is_expired': isExpired.toString(),
+      'last_updated': DateTime.now().toIso8601String(),
+      'email': email ?? "",
+    };
+  }
+
+  Map<String, String> toUpdateMap(String? email) {
+    return {
+      'phone_number': phoneNumber,
+      'loyalty_points': loyaltyPoints.toString(),
+      'access_token': accessToken ?? "", // Handle null value
+      'refresh_token': refreshToken ?? "Invalid Token", // Handle null value
+      'is_expired': isExpired.toString(),
+      'last_updated': DateTime.now().toIso8601String(),
+      'email': email ?? "",
+    };
+  }
+
+  Map<String, String> toRefreshTokensMap() {
+    return {
+      'access_token': accessToken ?? "Invalid Token", // Handle null value
+      'refresh_token': refreshToken ?? "Invalid Token", // Handle null value
+      'last_updated': DateTime.now().toIso8601String(),
+      'last_authenticated': DateTime.now().toIso8601String(),
+      'is_expired': false.toString(),
+    };
+  }
+}
+
+class NetworkAccountDataSource extends DataGridSource {
+  List<DataGridRow> _dataGridRows = [];
+
+  NetworkAccountDataSource({required List<NetworkAccount> accounts}) {
+    int rowNo = 1;
+    _dataGridRows = accounts.map<DataGridRow>((account) {
+      return DataGridRow(
+        cells: [
+          DataGridCell<int>(columnName: "id", value: account.id),
+          DataGridCell<int>(columnName: 'No', value: rowNo++),
+          DataGridCell<String>(
+            columnName: 'Phone Number',
+            value: account.phoneNumber,
+          ),
+          DataGridCell<int>(
+            columnName: 'Loyalty Points',
+            value: account.loyaltyPoints,
+          ),
+          DataGridCell<String>(
+            columnName: 'Date Added',
+            value: account.lastRunDate != null
+                ? DateFormat('yyyy-MM-dd HH:mm').format(account.lastRunDate!)
+                : null,
+          ),
+        ],
+      );
+    }).toList();
+  }
+
+  @override
+  List<DataGridRow> get rows => _dataGridRows;
+
+  @override
+  DataGridRowAdapter buildRow(DataGridRow row) {
+    return DataGridRowAdapter(
+      cells: row.getCells().map<Widget>((dataGridCell) {
+        return Container(
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: Text(
+            dataGridCell.value?.toString() ?? '',
+            overflow: TextOverflow.ellipsis,
+          ),
+        );
+      }).toList(),
+    );
   }
 }
